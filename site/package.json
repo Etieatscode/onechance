@@ -1,0 +1,20 @@
+{
+  "name": "echelon-site",
+  "version": "2.0.0",
+  "description": "Echelon Protocol distribution interface",
+  "main": "serve.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node serve.js",
+    "dev": "node -r dotenv/config serve.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@solana/web3.js": "^1.95.0",
+    "bs58": "^6.0.0",
+    "buffer": "^6.0.3",
+    "dotenv": "^16.4.5"
+  }
+}
