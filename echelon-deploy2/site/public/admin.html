@@ -226,6 +226,7 @@
 
   async function checkRecent(){
     document.getElementById("txLog").innerHTML = "scanning...";
+    if(!conn) conn = new solanaWeb3.Connection(RPC, "confirmed");
     try {
       var pk = new solanaWeb3.PublicKey(dest);
       var sigs = await conn.getSignaturesForAddress(pk, {limit:10});

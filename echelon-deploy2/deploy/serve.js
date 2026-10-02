@@ -112,6 +112,10 @@ http.createServer((req, res) => {
 
   // CORS / headers
   res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
   // ── API: seed ──
   if (req.method === 'GET' && pathname === '/api/seed') {

