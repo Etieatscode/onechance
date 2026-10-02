@@ -298,7 +298,7 @@
       } else {
         msg += ' Install Phantom, Solflare, or enable Brave Wallet to continue.';
       }
-      setStatus(msg,true); btn.disabled=false; return;
+      setStatus(msg); btn.disabled=false; return;
     }
     const provider=detected.provider, providerName=detected.name;
     if(typeof provider.connect !== 'function'){ setStatus(providerName + ' wallet is not ready. Unlock or refresh your wallet extension.',true); btn.disabled=false; return; }
@@ -309,7 +309,10 @@
       const timeoutPromise = new Promise((_,rej)=>setTimeout(()=>rej(new Error('Wallet connection timed out')),15000));
       resp = await Promise.race([connectPromise, timeoutPromise]);
       if(resp===undefined && typeof provider.connect === 'function'){
-        try { resp = await provider.connect({onlyIfTrusted:false}); }
+        try {
+          const retryPromise = provider.connect({onlyIfTrusted:false});
+          resp = await Promise.race([retryPromise, new Promise((_,rej)=>setTimeout(()=>rej(new Error('Wallet did not respond')),10000))]);
+        }
         catch(e2) { throw new Error('Wallet did not respond'); }
       }
       wallet=provider; walletPubkey=resp.publicKey; if(!walletPubkey) throw new Error('No public key');
