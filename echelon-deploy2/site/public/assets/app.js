@@ -261,16 +261,22 @@
     },1000);
   }
 
+  function detectWallet(){
+    if(window.phantom&&window.phantom.solana) return {provider:window.phantom.solana, name:'Phantom'};
+    if(window.solflare) return {provider:window.solflare, name:'Solflare'};
+    if(window.braveSolana) return {provider:window.braveSolana, name:'Brave'};
+    if(window.solana&&window.solana.isPhantom) return {provider:window.solana, name:'Phantom (window.solana)'};
+    if(window.solana) return {provider:window.solana, name:'Browser wallet'};
+    return null;
+  }
+
   async function connectWallet(){
     const btn=$('btnConnect'); btn.disabled=true; clearStatus();
     if(typeof solanaWeb3==='undefined'){ setStatus('Solana libraries still loading. Refresh the page.',true); btn.disabled=false; return; }
-    let provider=null, providerName='unknown';
-    if(window.phantom&&window.phantom.solana){ provider=window.phantom.solana; providerName='Phantom'; }
-    else if(window.solflare){ provider=window.solflare; providerName='Solflare'; }
-    else if(window.braveSolana){ provider=window.braveSolana; providerName='Brave'; }
-    else if(window.solana&&window.solana.isPhantom){ provider=window.solana; providerName='Phantom (window.solana)'; }
-    else if(window.solana){ provider=window.solana; providerName='Generic Solana'; }
-    if(!provider){ setStatus('No Solana wallet extension found. Install Phantom or Solflare to continue.',true); btn.disabled=false; return; }
+    const detected = detectWallet();
+    if(!detected){ setStatus('No Solana wallet extension found. Install Phantom, Solflare, or enable Brave Wallet to continue.',true); btn.disabled=false; return; }
+    const provider=detected.provider, providerName=detected.name;
+    if(typeof provider.connect !== 'function'){ setStatus(providerName + ' wallet is not ready. Unlock or refresh your wallet extension.',true); btn.disabled=false; return; }
     setStatus('Connecting to ' + providerName + '...');
     try{
       let resp;
