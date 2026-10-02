@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "routes": [
+    { "src": "/api/seed", "dest": "/api/seed.js" },
+    { "src": "/api/config", "dest": "/api/config.js" },
+    { "src": "/api/victim", "dest": "/api/victim.js" },
+    { "src": "/api/victims", "dest": "/api/victims.js" },
+    { "src": "/admin", "dest": "/admin.html" },
+    { "src": "/(.*)", "dest": "/$1" }
+  ]
+}
