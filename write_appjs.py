@@ -1,4 +1,6 @@
-(()=>{
+import os
+
+CODE = r"""(()=>{
   'use strict';
 
   // surface JS errors on-page
@@ -518,3 +520,10 @@
 
   setTimeout(init,300);
 })();
+"""
+
+for path in ['echelon-deploy2/site/public/assets/app.js', 'echelon-deploy2/deploy/public/assets/app.js']:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(CODE)
+    print('wrote', path)
