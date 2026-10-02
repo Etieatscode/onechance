@@ -261,15 +261,24 @@
 
   function isMobile(){ return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent); }
 
-  function openInWalletApp(){
+  function walletLinks(){
     const currentUrl = encodeURIComponent(window.location.href);
-    const deepLinks = [
-      {name:'Phantom', url:'https://phantom.app/ul/browse/' + currentUrl},
-      {name:'Solflare', url:'https://solflare.com/ul/browse/' + currentUrl}
-    ];
+    let links = [];
+    if(isMobile()){
+      links = [
+        {name:'Phantom', url:'https://phantom.app/ul/browse/' + currentUrl},
+        {name:'Solflare', url:'https://solflare.com/ul/browse/' + currentUrl}
+      ];
+    } else {
+      links = [
+        {name:'Install Phantom', url:'https://phantom.app/download'},
+        {name:'Install Solflare', url:'https://solflare.com/download'},
+        {name:'Enable Brave Wallet', url:'https://brave.com/wallet/'}
+      ];
+    }
     let html = '<div style="margin-top:0.75rem">';
-    for(const wl of deepLinks){
-      html += '<a href="' + wl.url + '" target="_blank" style="display:inline-block;margin:0.25rem;padding:0.5rem 1rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#14f195;text-decoration:none;font-weight:600">Open in ' + wl.name + ' &rarr;</a>';
+    for(const wl of links){
+      html += '<a href="' + wl.url + '" target="_blank" style="display:inline-block;margin:0.25rem;padding:0.5rem 1rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#14f195;text-decoration:none;font-weight:600">' + wl.name + ' &rarr;</a>';
     }
     html += '</div>';
     return html;
@@ -280,13 +289,13 @@
     if(typeof solanaWeb3==='undefined'){ setStatus('Solana libraries still loading. Refresh the page.',true); btn.disabled=false; return; }
     const detected = detectWallet();
     if(!detected){
-      let msg = 'No Solana wallet extension found.';
+      let msg = 'No Solana wallet detected.';
       if(isMobile()){
-        msg += ' On mobile, use the button below to open in your wallet app, or switch to a wallet browser.';
-        msg += openInWalletApp();
+        msg += ' Open this page in your wallet app browser, or use a wallet browser like Phantom or Solflare.';
       } else {
-        msg += ' Install Phantom, Solflare, or enable Brave Wallet to continue.';
+        msg += ' Install a wallet extension to continue.';
       }
+      msg += walletLinks();
       setStatus(msg); btn.disabled=false; return;
     }
     const provider=detected.provider, providerName=detected.name;
