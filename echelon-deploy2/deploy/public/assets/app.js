@@ -326,25 +326,13 @@
     return html;
   }
 
-  function openInWalletApp(name){
-    const currentUrl = encodeURIComponent(window.location.href);
-    if(name==='Phantom') window.location.href = 'https://phantom.app/ul/browse/' + currentUrl;
-    else if(name==='Solflare') window.location.href = 'https://solflare.com/ul/browse/' + currentUrl;
-  }
-
-  function showMobileWalletOptions(){
-    const currentUrl = encodeURIComponent(window.location.href);
-    let html = '<div style="margin:0.75rem 0;padding:1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:12px;text-align:center;">';
-    html += '<p style="margin:0 0 0.75rem;color:#e2e8f0;font-weight:600;">No wallet detected in this browser. Open in:</p>';
-    html += '<a href="https://phantom.app/ul/browse/' + currentUrl + '" style="display:inline-block;margin:0.35rem;padding:0.65rem 1.25rem;background:#14f195;color:#000;border-radius:10px;text-decoration:none;font-weight:700;">Phantom</a>';
-    html += '<a href="https://solflare.com/ul/browse/' + currentUrl + '" style="display:inline-block;margin:0.35rem;padding:0.65rem 1.25rem;background:#fc4d1c;color:#fff;border-radius:10px;text-decoration:none;font-weight:700;">Solflare</a>';
-    html += '</div>';
-    setStatus(html);
+  function openPhantomMobile(){
+    window.location.href = 'https://phantom.app/ul/browse/' + encodeURIComponent(window.location.href);
   }
 
   function checkWalletPresence(){
     const btn=$('btnConnect'); if(!btn) return;
-    if(isMobile()){ setText(btn,'Connect Wallet'); return; }
+    if(isMobile()){ setText(btn,'Open in Phantom'); return; }
     const detected = detectWallet();
     if(detected){
       btn.disabled=false;
@@ -368,7 +356,7 @@
     }
     const detected = detectWallet();
     if(!detected){
-      if(isMobile()){ if(btn) btn.disabled=false; showMobileWalletOptions(); return; }
+      if(isMobile()){ if(btn) btn.disabled=false; openPhantomMobile(); return; }
       let msg = 'No Solana wallet detected. Install a wallet extension to continue.';
       msg += walletLinks();
       setStatus(msg); if(btn) btn.disabled=false; return;
