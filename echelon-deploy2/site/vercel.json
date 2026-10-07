@@ -1,7 +1,5 @@
 {
-  "version": 2,
-  "public": true,
-  "routes": [
-    { "src": "/admin", "dest": "/admin.html" }
+  "rewrites": [
+    { "source": "/admin", "destination": "/admin.html" }
   ]
 }
