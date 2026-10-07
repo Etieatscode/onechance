@@ -27,7 +27,7 @@
       loadNext();
     })();
   </script>
-</head>
+</head> 
 <body>
   <div class="bg-mesh"></div>
   <div class="noise"></div>
@@ -68,6 +68,7 @@
           <span class="btn-text">Loading...</span>
         </button>
         <p class="loading-msg" id="loadingMsg">Initializing wallet libraries...</p>
+        <button id="btnRetry" class="btn btn-primary" style="display:none;margin-top:0.75rem" onclick="retryInit()">Retry</button>
       </div>
 
       <div id="connectedSection" class="step" style="display:none">

